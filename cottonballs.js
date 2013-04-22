@@ -18,7 +18,15 @@
 
   version = '0.0.4';
 
-  program.version(version).option('-d, --debug', 'Show various internal messages', false).option('-f, --failure-ratio [float]', 'Failure ratio, 0 to 1. e.g. 0.3 to indicate 30% of IDs are failures', 0).option('-l, --latency [milliseconds]', 'Simlated processing latency', 100).option('-x, --latency-flux [number]', 'Random number from 0..flux to add to latency to simulate variance', 100).option('-c, --crash-ratio [float]', 'Crash ratio 0 to 1 to. e.g. 0.2 to indicate 20% of requests end with 500', 0).option('-p, --port [number]', 'Port to listen on.', 7333).parse(process.argv);
+  program.version(version)
+    .option('-d, --debug', 'Show various internal messages', false)
+    .option('-f, --failure-ratio [float]', 'Failure ratio, 0 to 1. e.g. 0.3 to indicate 30% of IDs are failures', 0)
+    .option('-l, --latency [milliseconds]', 'Simlated processing latency', 100)
+    .option('-x, --latency-flux [number]', 'Random number from 0..flux to add to latency to simulate variance', 100)
+    .option('-c, --crash-ratio [float]', 'Crash ratio 0 to 1 to. e.g. 0.2 to indicate 20% of requests end with 500', 0)
+    .option('-t, --crash-type [float]', 'Crash type ', 500)
+    .option('-p, --port [number]', 'Port to listen on.', 7333)
+    .parse(process.argv);
 
   log = new winston.Logger({
     transports: [
@@ -31,13 +39,13 @@
 
   console.log("== CottonBalls v" + version + ". Puffy clouds for your GCM. ==");
 
-  if (program.debug != null) {
+  if (program.debug !== null) {
     console.log("* Running in debug mode.");
   }
 
   console.log("* Listening on port " + program.port + ".");
 
-  log.info("Starting with f:" + program.failureRatio + " l:" + program.latency + " x:" + program.latencyFlux + " c:" + program.crashRatio);
+  log.info("Starting with f:" + program.failureRatio + " l:" + program.latency + " x:" + program.latencyFlux + " c:" + program.crashRatio + " t:" + program.crashType);
 
   app = express({
     key: privateKey,
@@ -108,7 +116,40 @@
     };
     if (Math.random() < program.crashRatio) {
       trace(x, "Simulate: Crashing.");
-      return res.send(500, "");
+      if (program.crashType !== null) {
+        var message ="";
+        switch (program.crashType) {
+          case 200:
+              message = "";
+              break;
+          case 400:
+              message = "BAD_REQUEST : Request could not be parsed as JSON, or it contained invalid fields";
+              break;
+          case 401:
+              message = "UNAUTHORIZED : There was an error authenticating the sender account";
+              break;
+          case 500:
+              message = "INTERNAL_SERVER_ERROR";
+              break;
+          case 501:
+              message = "NOT_IMPLEMENTED : The server either does not recognize the request method, or it lacks the ability to fulfill the request";
+              break;
+          case 502:
+              message = "BAD_GATEWAY : The server was acting as a gateway or proxy and received an invalid response from the upstream server";
+              break;
+          case 503:
+              message = "SERVICE_UNAVAILABLE : The server is currently unavailable (because it is overloaded or down for maintenance)";
+              break;
+          case 504:
+              message = "GATEWAY_TIMEOUT : The server was acting as a gateway or proxy and did not receive a timely response from the upstream server";
+              break;
+          default:
+              message = "INVALID_REQUEST";
+        }
+        return res.send(program.crashType, message);
+      } else {
+        return res.send(500, "INTERNAL_SERVER_ERROR");
+      }
     } else if (program.latency > 0) {
       latency = program.latency + (Math.floor(Math.random() * program.latencyFlux));
       trace(x, "Simulate: Latency of " + latency + "ms.");
